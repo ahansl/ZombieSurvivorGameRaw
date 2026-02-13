@@ -58,6 +58,13 @@ const MULTIPLY_MIN = 2;
 const MULTIPLY_MAX = 12;
 const DIVISION_CHANCE = 0.25;
 
+// Orbiting star
+const STAR_ORBIT_RADIUS = 50;
+const STAR_ORBIT_SPEED = 2;       // radians per second
+const STAR_SIZE = 8;
+const STAR_COLOR = '#ffd700';
+const STAR_HIT_DISTANCE = 20;
+
 // Difficulty scaling
 const DIFFICULTY_TICK_SECONDS = 30;
 
@@ -85,6 +92,7 @@ function createInitialState() {
     currentEnemySpeed: ENEMY_BASE_SPEED,
     lastDifficultyTick: 0,
     damageFlashTimer: 0,
+    starAngle: 0,
   };
 }
 
@@ -164,6 +172,54 @@ function movePlayer(direction, distance) {
     case 'right': state.player.x += distance; break;
     case 'up':    state.player.y -= distance; break;
     case 'down':  state.player.y += distance; break;
+  }
+}
+
+// --- Orbiting Star ---
+
+function getStarPosition() {
+  return {
+    x: state.player.x + Math.cos(state.starAngle) * STAR_ORBIT_RADIUS,
+    y: state.player.y + Math.sin(state.starAngle) * STAR_ORBIT_RADIUS,
+  };
+}
+
+function updateStar(deltaTime) {
+  state.starAngle += STAR_ORBIT_SPEED * deltaTime;
+}
+
+function drawStar(sx, sy) {
+  const spikes = 5;
+  const outerRadius = STAR_SIZE;
+  const innerRadius = STAR_SIZE / 2;
+
+  ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+    const angle = (Math.PI / 2 * -1) + (Math.PI / spikes) * i;
+    const px = sx + Math.cos(angle) * radius;
+    const py = sy + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = STAR_COLOR;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function checkStarCollisions() {
+  const star = getStarPosition();
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    const dx = star.x - enemy.x;
+    const dy = star.y - enemy.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < STAR_HIT_DISTANCE) {
+      state.enemies.splice(i, 1);
+    }
   }
 }
 
@@ -428,6 +484,10 @@ function render() {
   // Player
   drawPlayer();
 
+  // Orbiting star
+  const star = getStarPosition();
+  drawStar(star.x, star.y);
+
   ctx.restore();
   // --- End world space ---
 
@@ -523,7 +583,11 @@ function gameLoop(timestamp) {
     // Move enemies
     updateEnemies(deltaTime);
 
+    // Update orbiting star
+    updateStar(deltaTime);
+
     // Collisions
+    checkStarCollisions();
     checkCollisions();
 
     // Damage flash countdown
