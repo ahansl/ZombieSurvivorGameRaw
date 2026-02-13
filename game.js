@@ -719,68 +719,108 @@ function setupInput() {
   }
 
   let listening = false;
+  let recognition = null;
+  let restartTimer = null;
 
-  function createRecognition() {
-    const rec = new SpeechRecognition();
+  function extractNumber(text) {
+    // 1) Try pulling a digit sequence out of anywhere in the string (e.g. "the answer is 42")
+    const digitMatch = text.match(/\d+/);
+    if (digitMatch) return parseInt(digitMatch[0], 10);
+    // 2) Fall back to word-based parsing
+    return parseSpokenNumber(text);
+  }
+
+  function startRecognition() {
+    // Kill any existing instance first
+    if (recognition) {
+      try { recognition.abort(); } catch (e) {}
+      recognition = null;
+    }
+
+    var rec = new SpeechRecognition();
     rec.lang = 'en-US';
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.continuous = true;
+    rec.interimResults = true;
     rec.maxAlternatives = 3;
 
     rec.onresult = function (event) {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          // Check all alternatives for a valid number
-          for (let a = 0; a < event.results[i].length; a++) {
-            const transcript = event.results[i][a].transcript.trim();
-            const numValue = parseSpokenNumber(transcript);
-            if (!isNaN(numValue) && tryAnswer(numValue)) {
-              break;
-            }
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var result = event.results[i];
+        // Show what the mic is hearing in the input field
+        input.value = result[0].transcript.trim();
+
+        // Try every alternative for a valid answer
+        for (var a = 0; a < result.length; a++) {
+          var transcript = result[a].transcript.trim();
+          var numValue = extractNumber(transcript);
+          if (!isNaN(numValue) && tryAnswer(numValue)) {
+            return;
           }
         }
       }
     };
 
     rec.onerror = function (event) {
-      // Only stop on fatal errors, not on no-speech or aborted
+      console.log('[mic] error:', event.error);
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        listening = false;
-        micBtn.classList.remove('listening');
+        stopRecognition();
         micBtn.title = 'Microphone access denied — check browser permissions';
       }
+      // no-speech / aborted / network — let onend handle restart
     };
 
     rec.onend = function () {
-      // Automatically restart if still in listening mode
+      console.log('[mic] session ended');
+      // Only restart if user still wants to listen; add delay so the
+      // browser fully releases the mic before we grab it again.
       if (listening) {
-        try {
-          var next = createRecognition();
-          next.start();
-        } catch (e) {
-          listening = false;
-          micBtn.classList.remove('listening');
-        }
+        restartTimer = setTimeout(function () {
+          restartTimer = null;
+          if (listening) {
+            try {
+              startRecognition();
+            } catch (e) {
+              stopRecognition();
+            }
+          }
+        }, 500);
       }
     };
 
-    return rec;
+    // Diagnostic events — shows exactly where the audio pipeline stalls
+    rec.onaudiostart = function () { console.log('[mic] audiostart — mic is capturing'); };
+    rec.onaudioend   = function () { console.log('[mic] audioend — mic stopped capturing'); };
+    rec.onsoundstart = function () { console.log('[mic] soundstart — sound detected'); };
+    rec.onsoundend   = function () { console.log('[mic] soundend — sound stopped'); };
+    rec.onspeechstart = function () { console.log('[mic] speechstart — speech detected'); };
+    rec.onspeechend  = function () { console.log('[mic] speechend — speech stopped'); };
+
+    recognition = rec;
+    rec.start();
+    console.log('[mic] started');
+  }
+
+  function stopRecognition() {
+    listening = false;
+    micBtn.classList.remove('listening');
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+    if (recognition) {
+      try { recognition.abort(); } catch (e) {}
+      recognition = null;
+    }
   }
 
   micBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     if (listening) {
-      listening = false;
-      micBtn.classList.remove('listening');
+      stopRecognition();
     } else {
       listening = true;
       micBtn.classList.add('listening');
       try {
-        var rec = createRecognition();
-        rec.start();
+        startRecognition();
       } catch (e) {
-        listening = false;
-        micBtn.classList.remove('listening');
+        stopRecognition();
         micBtn.title = 'Could not start microphone — try using HTTPS';
       }
     }
