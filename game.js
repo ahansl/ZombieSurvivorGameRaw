@@ -12,11 +12,12 @@ const PLAYER_RADIUS = 18;
 const PLAYER_COLOR = '#53d769';
 const PLAYER_STROKE_COLOR = '#ffffff';
 const PLAYER_STROKE_WIDTH = 2;
-const PLAYER_MOVE_DISTANCE = 35;
+const PLAYER_MOVE_DISTANCE = 96;        // ~1 inch at 96 DPI
+const PLAYER_MOVE_DISTANCE_HARD = 144;   // ~1.5 inches for hard facts
 const PLAYER_MAX_HEALTH = 5;
 
 // Math facts
-const MATH_FACT_OFFSET = 80;
+const MATH_FACT_OFFSET = 60;
 const MATH_FACT_FONT = 'bold 20px Courier New';
 const MATH_FACT_COLOR = '#ffffff';
 const MATH_FACT_BG_COLOR = 'rgba(0,0,0,0.6)';
@@ -27,7 +28,7 @@ const MATH_FACT_PADDING_Y = 6;
 const ENEMY_SIZE = 14;
 const ENEMY_COLOR = '#e94560';
 const ENEMY_LINE_WIDTH = 3;
-const ENEMY_BASE_SPEED = 0.6;
+const ENEMY_BASE_SPEED = 0.4;
 const ENEMY_SPEED_INCREMENT = 0.05;
 const ENEMY_SPAWN_INTERVAL_INITIAL = 3000;
 const ENEMY_SPAWN_INTERVAL_MIN = 800;
@@ -119,11 +120,13 @@ function generateMathFact() {
     const divisor = randomInt(MULTIPLY_MIN, MULTIPLY_MAX);
     const quotient = randomInt(MULTIPLY_MIN, MULTIPLY_MAX);
     const dividend = divisor * quotient;
-    return { text: dividend + ' \u00F7 ' + divisor, answer: quotient };
+    const hard = divisor >= 7 && quotient >= 7;
+    return { text: dividend + ' \u00F7 ' + divisor, answer: quotient, hard: hard };
   } else {
     const a = randomInt(MULTIPLY_MIN, MULTIPLY_MAX);
     const b = randomInt(MULTIPLY_MIN, MULTIPLY_MAX);
-    return { text: a + ' x ' + b, answer: a * b };
+    const hard = a >= 7 && b >= 7;
+    return { text: a + ' x ' + b, answer: a * b, hard: hard };
   }
 }
 
@@ -155,25 +158,35 @@ function drawPlayer() {
   ctx.stroke();
 }
 
-function movePlayer(direction) {
+function movePlayer(direction, distance) {
   switch (direction) {
-    case 'left':  state.player.x -= PLAYER_MOVE_DISTANCE; break;
-    case 'right': state.player.x += PLAYER_MOVE_DISTANCE; break;
-    case 'up':    state.player.y -= PLAYER_MOVE_DISTANCE; break;
-    case 'down':  state.player.y += PLAYER_MOVE_DISTANCE; break;
+    case 'left':  state.player.x -= distance; break;
+    case 'right': state.player.x += distance; break;
+    case 'up':    state.player.y -= distance; break;
+    case 'down':  state.player.y += distance; break;
   }
-  state.player.x = clamp(state.player.x, PLAYER_RADIUS, CANVAS_WIDTH - PLAYER_RADIUS);
-  state.player.y = clamp(state.player.y, PLAYER_RADIUS, CANVAS_HEIGHT - PLAYER_RADIUS);
+}
+
+// --- Camera ---
+
+function getCameraOffset() {
+  return {
+    x: state.player.x - CANVAS_WIDTH / 2,
+    y: state.player.y - CANVAS_HEIGHT / 2,
+  };
 }
 
 // --- Math Fact Display ---
 
 function drawMathFacts() {
+  // Math facts are drawn in screen space (after camera restore) around screen center
+  const cx = CANVAS_WIDTH / 2;
+  const cy = CANVAS_HEIGHT / 2;
   const positions = {
-    left:  { x: state.player.x - MATH_FACT_OFFSET, y: state.player.y },
-    right: { x: state.player.x + MATH_FACT_OFFSET, y: state.player.y },
-    up:    { x: state.player.x, y: state.player.y - MATH_FACT_OFFSET },
-    down:  { x: state.player.x, y: state.player.y + MATH_FACT_OFFSET },
+    left:  { x: cx - MATH_FACT_OFFSET, y: cy },
+    right: { x: cx + MATH_FACT_OFFSET, y: cy },
+    up:    { x: cx, y: cy - MATH_FACT_OFFSET },
+    down:  { x: cx, y: cy + MATH_FACT_OFFSET },
   };
 
   ctx.font = MATH_FACT_FONT;
@@ -186,9 +199,8 @@ function drawMathFacts() {
     const bgWidth = metrics.width + MATH_FACT_PADDING_X * 2;
     const bgHeight = 24 + MATH_FACT_PADDING_Y * 2;
 
-    // Clamp position so the pill stays on-screen
-    const drawX = clamp(pos.x, bgWidth / 2 + 4, CANVAS_WIDTH - bgWidth / 2 - 4);
-    const drawY = clamp(pos.y, bgHeight / 2 + 4, CANVAS_HEIGHT - bgHeight / 2 - 4);
+    const drawX = pos.x;
+    const drawY = pos.y;
 
     // Background pill
     ctx.fillStyle = MATH_FACT_BG_COLOR;
@@ -203,25 +215,26 @@ function drawMathFacts() {
 // --- Enemies ---
 
 function spawnEnemy() {
+  const cam = getCameraOffset();
   const edge = Math.floor(Math.random() * 4);
   let x, y;
 
   switch (edge) {
     case 0: // top
-      x = randomInt(ENEMY_SPAWN_MARGIN, CANVAS_WIDTH - ENEMY_SPAWN_MARGIN);
-      y = -ENEMY_SIZE;
+      x = cam.x + randomInt(ENEMY_SPAWN_MARGIN, CANVAS_WIDTH - ENEMY_SPAWN_MARGIN);
+      y = cam.y - ENEMY_SIZE;
       break;
     case 1: // right
-      x = CANVAS_WIDTH + ENEMY_SIZE;
-      y = randomInt(ENEMY_SPAWN_MARGIN, CANVAS_HEIGHT - ENEMY_SPAWN_MARGIN);
+      x = cam.x + CANVAS_WIDTH + ENEMY_SIZE;
+      y = cam.y + randomInt(ENEMY_SPAWN_MARGIN, CANVAS_HEIGHT - ENEMY_SPAWN_MARGIN);
       break;
     case 2: // bottom
-      x = randomInt(ENEMY_SPAWN_MARGIN, CANVAS_WIDTH - ENEMY_SPAWN_MARGIN);
-      y = CANVAS_HEIGHT + ENEMY_SIZE;
+      x = cam.x + randomInt(ENEMY_SPAWN_MARGIN, CANVAS_WIDTH - ENEMY_SPAWN_MARGIN);
+      y = cam.y + CANVAS_HEIGHT + ENEMY_SIZE;
       break;
     case 3: // left
-      x = -ENEMY_SIZE;
-      y = randomInt(ENEMY_SPAWN_MARGIN, CANVAS_HEIGHT - ENEMY_SPAWN_MARGIN);
+      x = cam.x - ENEMY_SIZE;
+      y = cam.y + randomInt(ENEMY_SPAWN_MARGIN, CANVAS_HEIGHT - ENEMY_SPAWN_MARGIN);
       break;
   }
 
@@ -372,8 +385,40 @@ function updateDifficulty() {
 
 // --- Rendering ---
 
+function drawGrid() {
+  const cam = getCameraOffset();
+  const gridSize = 80;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+  ctx.lineWidth = 1;
+
+  const startX = -(cam.x % gridSize);
+  const startY = -(cam.y % gridSize);
+
+  for (let x = startX; x <= CANVAS_WIDTH; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, CANVAS_HEIGHT);
+    ctx.stroke();
+  }
+  for (let y = startY; y <= CANVAS_HEIGHT; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(CANVAS_WIDTH, y);
+    ctx.stroke();
+  }
+}
+
 function render() {
+  const cam = getCameraOffset();
+
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // Background grid (screen space, but offset by camera)
+  drawGrid();
+
+  // --- World space (camera transform) ---
+  ctx.save();
+  ctx.translate(-cam.x, -cam.y);
 
   // Enemies (behind player)
   for (const enemy of state.enemies) {
@@ -383,12 +428,15 @@ function render() {
   // Player
   drawPlayer();
 
-  // Math facts
+  ctx.restore();
+  // --- End world space ---
+
+  // Math facts (screen space, around center)
   if (!state.gameOver) {
     drawMathFacts();
   }
 
-  // HUD
+  // HUD (screen space)
   drawHealthBar();
   drawTimer();
 
@@ -423,7 +471,8 @@ function setupInput() {
 
     for (const direction of ['left', 'right', 'up', 'down']) {
       if (numValue === state.mathFacts[direction].answer) {
-        movePlayer(direction);
+        const dist = state.mathFacts[direction].hard ? PLAYER_MOVE_DISTANCE_HARD : PLAYER_MOVE_DISTANCE;
+        movePlayer(direction, dist);
         generateAllFacts();
         input.value = '';
         return;
