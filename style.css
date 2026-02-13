@@ -23,7 +23,7 @@ body {
 #gameCanvas {
   border: 3px solid #e94560;
   border-radius: 4px;
-  background-color: #16213e;
+  background-color: #1a2e1a;
   display: block;
 }
 
@@ -60,4 +60,35 @@ body {
 #answer-input::placeholder {
   color: #666;
   font-size: 14px;
+}
+
+#mic-btn {
+  width: 44px;
+  height: 44px;
+  border: 2px solid #e94560;
+  border-radius: 50%;
+  background-color: #0f3460;
+  color: #cccccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+#mic-btn:hover {
+  border-color: #53d769;
+  color: #ffffff;
+}
+
+#mic-btn.listening {
+  background-color: #e94560;
+  border-color: #e94560;
+  color: #ffffff;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(233, 69, 96, 0.6); }
 }

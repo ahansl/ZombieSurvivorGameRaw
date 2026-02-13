@@ -23,6 +23,8 @@ const MATH_FACT_COLOR = '#ffffff';
 const MATH_FACT_BG_COLOR = 'rgba(0,0,0,0.6)';
 const MATH_FACT_PADDING_X = 10;
 const MATH_FACT_PADDING_Y = 6;
+const MATH_FACT_SOLVED_COLOR = '#53d769';
+const MATH_FACT_SOLVED_DURATION = 1.0;
 
 // Enemies
 const ENEMY_SIZE = 14;
@@ -93,6 +95,8 @@ function createInitialState() {
     lastDifficultyTick: 0,
     damageFlashTimer: 0,
     starAngle: 0,
+    solvedDirection: null,
+    solvedFlashTimer: 0,
   };
 }
 
@@ -250,7 +254,9 @@ function drawMathFacts() {
   ctx.textBaseline = 'middle';
 
   for (const [direction, pos] of Object.entries(positions)) {
-    const text = state.mathFacts[direction].text;
+    const fact = state.mathFacts[direction];
+    const isSolved = state.solvedDirection === direction && state.solvedFlashTimer > 0;
+    const text = isSolved ? fact.text + ' = ' + fact.answer : fact.text;
     const metrics = ctx.measureText(text);
     const bgWidth = metrics.width + MATH_FACT_PADDING_X * 2;
     const bgHeight = 24 + MATH_FACT_PADDING_Y * 2;
@@ -258,13 +264,19 @@ function drawMathFacts() {
     const drawX = pos.x;
     const drawY = pos.y;
 
-    // Background pill
-    ctx.fillStyle = MATH_FACT_BG_COLOR;
-    drawRoundedRect(drawX - bgWidth / 2, drawY - bgHeight / 2, bgWidth, bgHeight, 6);
-
-    // Text
-    ctx.fillStyle = MATH_FACT_COLOR;
-    ctx.fillText(text, drawX, drawY);
+    if (isSolved) {
+      // Bright green pill with answer shown
+      ctx.fillStyle = MATH_FACT_SOLVED_COLOR;
+      drawRoundedRect(drawX - bgWidth / 2 - 4, drawY - bgHeight / 2 - 4, bgWidth + 8, bgHeight + 8, 8);
+      ctx.fillStyle = '#000000';
+      ctx.fillText(text, drawX, drawY);
+    } else {
+      // Normal dark pill
+      ctx.fillStyle = MATH_FACT_BG_COLOR;
+      drawRoundedRect(drawX - bgWidth / 2, drawY - bgHeight / 2, bgWidth, bgHeight, 6);
+      ctx.fillStyle = MATH_FACT_COLOR;
+      ctx.fillText(text, drawX, drawY);
+    }
   }
 }
 
@@ -441,26 +453,133 @@ function updateDifficulty() {
 
 // --- Rendering ---
 
-function drawGrid() {
+// Seeded random for deterministic terrain
+function seededRandom(seed) {
+  let s = Math.abs(seed) || 1;
+  return function () {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+// Terrain tile colors — earthy landscape palette
+const TERRAIN_COLORS = [
+  '#1a2e1a', // dark forest
+  '#1e3320', // deep green
+  '#243b24', // forest green
+  '#2d4a2d', // mossy green
+  '#1c2e24', // dark teal-green
+  '#2a3a1e', // olive dark
+  '#1f2b1a', // shadow green
+  '#273d27', // mid green
+];
+
+const TILE_SIZE = 80;
+const tileColorCache = {};
+
+function getTileColor(tx, ty) {
+  const key = tx + ',' + ty;
+  if (tileColorCache[key]) return tileColorCache[key];
+  const rng = seededRandom((tx * 73856093) ^ (ty * 19349663));
+  const color = TERRAIN_COLORS[Math.floor(rng() * TERRAIN_COLORS.length)];
+  tileColorCache[key] = color;
+  return color;
+}
+
+// Decorations per tile (grass tufts, pebbles, etc.)
+const tileDecoCache = {};
+
+function getTileDecorations(tx, ty) {
+  const key = tx + ',' + ty;
+  if (tileDecoCache[key]) return tileDecoCache[key];
+  const rng = seededRandom((tx * 48611) ^ (ty * 96769));
+  const items = [];
+  const count = Math.floor(rng() * 4); // 0-3 decorations per tile
+  for (let i = 0; i < count; i++) {
+    items.push({
+      ox: rng() * TILE_SIZE,
+      oy: rng() * TILE_SIZE,
+      type: Math.floor(rng() * 3), // 0=grass tuft, 1=pebble, 2=dark patch
+      size: 2 + rng() * 5,
+    });
+  }
+  tileDecoCache[key] = items;
+  return items;
+}
+
+function drawBackground() {
   const cam = getCameraOffset();
-  const gridSize = 80;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+
+  // Determine visible tile range
+  const startTX = Math.floor(cam.x / TILE_SIZE);
+  const startTY = Math.floor(cam.y / TILE_SIZE);
+  const endTX = Math.ceil((cam.x + CANVAS_WIDTH) / TILE_SIZE);
+  const endTY = Math.ceil((cam.y + CANVAS_HEIGHT) / TILE_SIZE);
+
+  // Draw colored terrain tiles
+  for (let tx = startTX; tx <= endTX; tx++) {
+    for (let ty = startTY; ty <= endTY; ty++) {
+      const sx = tx * TILE_SIZE - cam.x;
+      const sy = ty * TILE_SIZE - cam.y;
+      ctx.fillStyle = getTileColor(tx, ty);
+      ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  // Subtle grid lines between tiles
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.lineWidth = 1;
-
-  const startX = -(cam.x % gridSize);
-  const startY = -(cam.y % gridSize);
-
-  for (let x = startX; x <= CANVAS_WIDTH; x += gridSize) {
+  const gridOffsetX = -(cam.x % TILE_SIZE);
+  const gridOffsetY = -(cam.y % TILE_SIZE);
+  for (let x = gridOffsetX; x <= CANVAS_WIDTH; x += TILE_SIZE) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, CANVAS_HEIGHT);
     ctx.stroke();
   }
-  for (let y = startY; y <= CANVAS_HEIGHT; y += gridSize) {
+  for (let y = gridOffsetY; y <= CANVAS_HEIGHT; y += TILE_SIZE) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(CANVAS_WIDTH, y);
     ctx.stroke();
+  }
+
+  // Draw decorations on tiles (grass, pebbles, dark patches)
+  for (let tx = startTX; tx <= endTX; tx++) {
+    for (let ty = startTY; ty <= endTY; ty++) {
+      const baseSX = tx * TILE_SIZE - cam.x;
+      const baseSY = ty * TILE_SIZE - cam.y;
+      const decos = getTileDecorations(tx, ty);
+      for (const d of decos) {
+        const dx = baseSX + d.ox;
+        const dy = baseSY + d.oy;
+        if (d.type === 0) {
+          // Grass tuft — small green lines
+          ctx.strokeStyle = 'rgba(80, 160, 80, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(dx, dy);
+          ctx.lineTo(dx - 2, dy - d.size);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(dx, dy);
+          ctx.lineTo(dx + 2, dy - d.size * 0.8);
+          ctx.stroke();
+        } else if (d.type === 1) {
+          // Pebble — small grey dot
+          ctx.beginPath();
+          ctx.arc(dx, dy, d.size * 0.4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(100, 100, 90, 0.25)';
+          ctx.fill();
+        } else {
+          // Dark patch — subtle shadow spot
+          ctx.beginPath();
+          ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+          ctx.fill();
+        }
+      }
+    }
   }
 }
 
@@ -469,8 +588,8 @@ function render() {
 
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Background grid (screen space, but offset by camera)
-  drawGrid();
+  // Background grid + scattered decorations
+  drawBackground();
 
   // --- World space (camera transform) ---
   ctx.save();
@@ -511,6 +630,56 @@ function render() {
 
 // --- Input ---
 
+// Word-to-number map for speech recognition
+const WORD_NUMBERS = {
+  'zero': 0, 'one': 1, 'two': 2, 'to': 2, 'too': 2, 'three': 3, 'four': 4, 'for': 4,
+  'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'ate': 8, 'nine': 9, 'ten': 10,
+  'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+  'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+  'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+  'eighty': 80, 'ninety': 90, 'hundred': 100,
+};
+
+function parseSpokenNumber(text) {
+  // Try direct number parse first
+  const direct = parseInt(text, 10);
+  if (!isNaN(direct)) return direct;
+
+  // Try word-to-number
+  const words = text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').split(/[\s-]+/);
+  let total = 0;
+  let found = false;
+  for (const word of words) {
+    if (WORD_NUMBERS[word] !== undefined) {
+      const val = WORD_NUMBERS[word];
+      if (val === 100) {
+        total = (total === 0 ? 1 : total) * 100;
+      } else {
+        total += val;
+      }
+      found = true;
+    }
+  }
+  return found ? total : NaN;
+}
+
+function tryAnswer(numValue) {
+  if (state.gameOver || state.solvedFlashTimer > 0) return false;
+  if (isNaN(numValue)) return false;
+
+  for (const direction of ['left', 'right', 'up', 'down']) {
+    if (numValue === state.mathFacts[direction].answer) {
+      const dist = state.mathFacts[direction].hard ? PLAYER_MOVE_DISTANCE_HARD : PLAYER_MOVE_DISTANCE;
+      movePlayer(direction, dist);
+      state.solvedDirection = direction;
+      state.solvedFlashTimer = MATH_FACT_SOLVED_DURATION;
+      input.value = '';
+      return true;
+    }
+  }
+  return false;
+}
+
 function setupInput() {
   input.focus();
 
@@ -521,7 +690,7 @@ function setupInput() {
   });
 
   input.addEventListener('input', function () {
-    if (state.gameOver) return;
+    if (state.gameOver || state.solvedFlashTimer > 0) return;
 
     const value = input.value.trim();
     if (value === '') return;
@@ -529,20 +698,91 @@ function setupInput() {
     const numValue = parseInt(value, 10);
     if (isNaN(numValue)) return;
 
-    for (const direction of ['left', 'right', 'up', 'down']) {
-      if (numValue === state.mathFacts[direction].answer) {
-        const dist = state.mathFacts[direction].hard ? PLAYER_MOVE_DISTANCE_HARD : PLAYER_MOVE_DISTANCE;
-        movePlayer(direction, dist);
-        generateAllFacts();
-        input.value = '';
-        return;
-      }
-    }
+    tryAnswer(numValue);
   });
 
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && state.gameOver) {
       resetGame();
+    }
+  });
+
+  // --- Microphone / Speech Recognition ---
+  const micBtn = document.getElementById('mic-btn');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    micBtn.title = 'Speech recognition not supported in this browser';
+    micBtn.style.opacity = '0.4';
+    micBtn.style.cursor = 'not-allowed';
+    return;
+  }
+
+  let listening = false;
+
+  function createRecognition() {
+    const rec = new SpeechRecognition();
+    rec.lang = 'en-US';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 3;
+
+    rec.onresult = function (event) {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          // Check all alternatives for a valid number
+          for (let a = 0; a < event.results[i].length; a++) {
+            const transcript = event.results[i][a].transcript.trim();
+            const numValue = parseSpokenNumber(transcript);
+            if (!isNaN(numValue) && tryAnswer(numValue)) {
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    rec.onerror = function (event) {
+      // Only stop on fatal errors, not on no-speech or aborted
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        listening = false;
+        micBtn.classList.remove('listening');
+        micBtn.title = 'Microphone access denied — check browser permissions';
+      }
+    };
+
+    rec.onend = function () {
+      // Automatically restart if still in listening mode
+      if (listening) {
+        try {
+          var next = createRecognition();
+          next.start();
+        } catch (e) {
+          listening = false;
+          micBtn.classList.remove('listening');
+        }
+      }
+    };
+
+    return rec;
+  }
+
+  micBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (listening) {
+      listening = false;
+      micBtn.classList.remove('listening');
+    } else {
+      listening = true;
+      micBtn.classList.add('listening');
+      try {
+        var rec = createRecognition();
+        rec.start();
+      } catch (e) {
+        listening = false;
+        micBtn.classList.remove('listening');
+        micBtn.title = 'Could not start microphone — try using HTTPS';
+      }
     }
   });
 }
@@ -589,6 +829,16 @@ function gameLoop(timestamp) {
     // Collisions
     checkStarCollisions();
     checkCollisions();
+
+    // Solved fact flash countdown — regenerate facts when it expires
+    if (state.solvedFlashTimer > 0) {
+      state.solvedFlashTimer -= deltaTime;
+      if (state.solvedFlashTimer <= 0) {
+        state.solvedFlashTimer = 0;
+        state.solvedDirection = null;
+        generateAllFacts();
+      }
+    }
 
     // Damage flash countdown
     state.damageFlashTimer = Math.max(0, state.damageFlashTimer - deltaTime);
