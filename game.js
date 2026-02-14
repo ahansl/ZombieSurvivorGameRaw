@@ -9,15 +9,20 @@ const CANVAS_HEIGHT = 600;
 
 // Player
 const PLAYER_RADIUS = 18;
+const PLAYER_SPRITE_SIZE = 64;  // drawn size of the character sprite
 const PLAYER_COLOR = '#53d769';
 const PLAYER_STROKE_COLOR = '#ffffff';
 const PLAYER_STROKE_WIDTH = 2;
+
+// Player sprite image
+const playerImage = new Image();
+playerImage.src = 'main_character.png';
 const PLAYER_MOVE_DISTANCE = 96;        // ~1 inch at 96 DPI
 const PLAYER_MOVE_DISTANCE_HARD = 144;   // ~1.5 inches for hard facts
 const PLAYER_MAX_HEALTH = 5;
 
 // Math facts
-const MATH_FACT_OFFSET = 60;
+const MATH_FACT_OFFSET = 90;
 const MATH_FACT_FONT = 'bold 20px Courier New';
 const MATH_FACT_COLOR = '#ffffff';
 const MATH_FACT_BG_COLOR = 'rgba(0,0,0,0.6)';
@@ -161,13 +166,19 @@ function generateAllFacts() {
 // --- Player ---
 
 function drawPlayer() {
-  ctx.beginPath();
-  ctx.arc(state.player.x, state.player.y, PLAYER_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = PLAYER_COLOR;
-  ctx.fill();
-  ctx.strokeStyle = PLAYER_STROKE_COLOR;
-  ctx.lineWidth = PLAYER_STROKE_WIDTH;
-  ctx.stroke();
+  if (playerImage.complete && playerImage.naturalWidth > 0) {
+    const half = PLAYER_SPRITE_SIZE / 2;
+    ctx.drawImage(playerImage, state.player.x - half, state.player.y - half, PLAYER_SPRITE_SIZE, PLAYER_SPRITE_SIZE);
+  } else {
+    // Fallback green circle while image loads
+    ctx.beginPath();
+    ctx.arc(state.player.x, state.player.y, PLAYER_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.fill();
+    ctx.strokeStyle = PLAYER_STROKE_COLOR;
+    ctx.lineWidth = PLAYER_STROKE_WIDTH;
+    ctx.stroke();
+  }
 }
 
 function movePlayer(direction, distance) {
@@ -243,8 +254,8 @@ function drawMathFacts() {
   const cx = CANVAS_WIDTH / 2;
   const cy = CANVAS_HEIGHT / 2;
   const positions = {
-    left:  { x: cx - MATH_FACT_OFFSET, y: cy },
-    right: { x: cx + MATH_FACT_OFFSET, y: cy },
+    left:  { x: cx - MATH_FACT_OFFSET - 50, y: cy },
+    right: { x: cx + MATH_FACT_OFFSET + 50, y: cy },
     up:    { x: cx, y: cy - MATH_FACT_OFFSET },
     down:  { x: cx, y: cy + MATH_FACT_OFFSET },
   };
