@@ -7,7 +7,20 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="game-container">
+  <!-- Prologue Screen 1: Story -->
+  <div id="prologue-story">
+    <img src="story.png" alt="The story of Crimsonvale" id="story-img">
+    <button id="story-continue-btn">Continue</button>
+  </div>
+
+  <!-- Prologue Screen 2: Scroll -->
+  <div id="prologue-scroll" style="display: none;">
+    <img src="scroll.png" alt="The ancient scroll" id="scroll-img">
+    <button id="scroll-play-btn">Begin your quest</button>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-container" style="display: none;">
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <div id="input-area">
       <label for="answer-input">Answer:</label>

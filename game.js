@@ -19,6 +19,8 @@ const playerImage = new Image();
 playerImage.src = 'main_character.png';
 const backgroundImage = new Image();
 backgroundImage.src = 'background.png';
+const enemyImage = new Image();
+enemyImage.src = 'villager_pitchfork.png';
 const PLAYER_MOVE_DISTANCE = 96;        // ~1 inch at 96 DPI
 const PLAYER_MOVE_DISTANCE_HARD = 144;   // ~1.5 inches for hard facts
 const PLAYER_MAX_HEALTH = 5;
@@ -334,20 +336,31 @@ function updateEnemies(deltaTime) {
   }
 }
 
+const ENEMY_SPRITE_SIZE = 48;
+
 function drawEnemy(enemy) {
-  ctx.strokeStyle = ENEMY_COLOR;
-  ctx.lineWidth = ENEMY_LINE_WIDTH;
-  ctx.lineCap = 'round';
-
-  ctx.beginPath();
-  ctx.moveTo(enemy.x - ENEMY_SIZE, enemy.y - ENEMY_SIZE);
-  ctx.lineTo(enemy.x + ENEMY_SIZE, enemy.y + ENEMY_SIZE);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(enemy.x + ENEMY_SIZE, enemy.y - ENEMY_SIZE);
-  ctx.lineTo(enemy.x - ENEMY_SIZE, enemy.y + ENEMY_SIZE);
-  ctx.stroke();
+  if (enemyImage.complete && enemyImage.naturalWidth > 0) {
+    ctx.drawImage(
+      enemyImage,
+      enemy.x - ENEMY_SPRITE_SIZE / 2,
+      enemy.y - ENEMY_SPRITE_SIZE / 2,
+      ENEMY_SPRITE_SIZE,
+      ENEMY_SPRITE_SIZE
+    );
+  } else {
+    // Fallback X while image loads
+    ctx.strokeStyle = ENEMY_COLOR;
+    ctx.lineWidth = ENEMY_LINE_WIDTH;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(enemy.x - ENEMY_SIZE, enemy.y - ENEMY_SIZE);
+    ctx.lineTo(enemy.x + ENEMY_SIZE, enemy.y + ENEMY_SIZE);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(enemy.x + ENEMY_SIZE, enemy.y - ENEMY_SIZE);
+    ctx.lineTo(enemy.x - ENEMY_SIZE, enemy.y + ENEMY_SIZE);
+    ctx.stroke();
+  }
 }
 
 // --- Collisions ---
@@ -850,14 +863,32 @@ function gameLoop(timestamp) {
 
 // --- Init ---
 
-function init() {
+function startGame() {
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
   input = document.getElementById('answer-input');
 
   resetGame();
   setupInput();
+  input.focus();
   requestAnimationFrame(gameLoop);
+}
+
+function init() {
+  const storyScreen = document.getElementById('prologue-story');
+  const scrollScreen = document.getElementById('prologue-scroll');
+  const gameContainer = document.getElementById('game-container');
+
+  document.getElementById('story-continue-btn').addEventListener('click', () => {
+    storyScreen.style.display = 'none';
+    scrollScreen.style.display = 'flex';
+  });
+
+  document.getElementById('scroll-play-btn').addEventListener('click', () => {
+    scrollScreen.style.display = 'none';
+    gameContainer.style.display = 'flex';
+    startGame();
+  });
 }
 
 window.addEventListener('DOMContentLoaded', init);
