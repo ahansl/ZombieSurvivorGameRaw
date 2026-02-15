@@ -17,6 +17,8 @@ const PLAYER_STROKE_WIDTH = 2;
 // Player sprite image
 const playerImage = new Image();
 playerImage.src = 'main_character.png';
+const backgroundImage = new Image();
+backgroundImage.src = 'background.png';
 const PLAYER_MOVE_DISTANCE = 96;        // ~1 inch at 96 DPI
 const PLAYER_MOVE_DISTANCE_HARD = 144;   // ~1.5 inches for hard facts
 const PLAYER_MAX_HEALTH = 5;
@@ -519,77 +521,24 @@ function getTileDecorations(tx, ty) {
 }
 
 function drawBackground() {
+  if (!backgroundImage.complete || backgroundImage.naturalWidth === 0) {
+    // Fallback: solid dark fill while image loads
+    ctx.fillStyle = '#1a2e1a';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    return;
+  }
+
   const cam = getCameraOffset();
+  const imgW = backgroundImage.naturalWidth;
+  const imgH = backgroundImage.naturalHeight;
 
-  // Determine visible tile range
-  const startTX = Math.floor(cam.x / TILE_SIZE);
-  const startTY = Math.floor(cam.y / TILE_SIZE);
-  const endTX = Math.ceil((cam.x + CANVAS_WIDTH) / TILE_SIZE);
-  const endTY = Math.ceil((cam.y + CANVAS_HEIGHT) / TILE_SIZE);
+  // Tile the background image across the visible area
+  const startX = Math.floor(cam.x / imgW) * imgW;
+  const startY = Math.floor(cam.y / imgH) * imgH;
 
-  // Draw colored terrain tiles
-  for (let tx = startTX; tx <= endTX; tx++) {
-    for (let ty = startTY; ty <= endTY; ty++) {
-      const sx = tx * TILE_SIZE - cam.x;
-      const sy = ty * TILE_SIZE - cam.y;
-      ctx.fillStyle = getTileColor(tx, ty);
-      ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
-    }
-  }
-
-  // Subtle grid lines between tiles
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-  ctx.lineWidth = 1;
-  const gridOffsetX = -(cam.x % TILE_SIZE);
-  const gridOffsetY = -(cam.y % TILE_SIZE);
-  for (let x = gridOffsetX; x <= CANVAS_WIDTH; x += TILE_SIZE) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, CANVAS_HEIGHT);
-    ctx.stroke();
-  }
-  for (let y = gridOffsetY; y <= CANVAS_HEIGHT; y += TILE_SIZE) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(CANVAS_WIDTH, y);
-    ctx.stroke();
-  }
-
-  // Draw decorations on tiles (grass, pebbles, dark patches)
-  for (let tx = startTX; tx <= endTX; tx++) {
-    for (let ty = startTY; ty <= endTY; ty++) {
-      const baseSX = tx * TILE_SIZE - cam.x;
-      const baseSY = ty * TILE_SIZE - cam.y;
-      const decos = getTileDecorations(tx, ty);
-      for (const d of decos) {
-        const dx = baseSX + d.ox;
-        const dy = baseSY + d.oy;
-        if (d.type === 0) {
-          // Grass tuft — small green lines
-          ctx.strokeStyle = 'rgba(80, 160, 80, 0.3)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(dx, dy);
-          ctx.lineTo(dx - 2, dy - d.size);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(dx, dy);
-          ctx.lineTo(dx + 2, dy - d.size * 0.8);
-          ctx.stroke();
-        } else if (d.type === 1) {
-          // Pebble — small grey dot
-          ctx.beginPath();
-          ctx.arc(dx, dy, d.size * 0.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(100, 100, 90, 0.25)';
-          ctx.fill();
-        } else {
-          // Dark patch — subtle shadow spot
-          ctx.beginPath();
-          ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-          ctx.fill();
-        }
-      }
+  for (let wx = startX; wx < cam.x + CANVAS_WIDTH; wx += imgW) {
+    for (let wy = startY; wy < cam.y + CANVAS_HEIGHT; wy += imgH) {
+      ctx.drawImage(backgroundImage, wx - cam.x, wy - cam.y);
     }
   }
 }
