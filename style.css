@@ -62,7 +62,8 @@ body {
   font-size: 14px;
 }
 
-#mic-btn {
+#mic-btn,
+#leaderboard-btn {
   width: 44px;
   height: 44px;
   border: 2px solid #e94560;
@@ -76,7 +77,8 @@ body {
   transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
-#mic-btn:hover {
+#mic-btn:hover,
+#leaderboard-btn:hover {
   border-color: #53d769;
   color: #ffffff;
 }
@@ -86,6 +88,12 @@ body {
   border-color: #e94560;
   color: #ffffff;
   animation: mic-pulse 1s ease-in-out infinite;
+}
+
+#leaderboard-btn.active {
+  background-color: #ffd700;
+  border-color: #ffd700;
+  color: #1a1a2e;
 }
 
 @keyframes mic-pulse {

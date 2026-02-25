@@ -114,6 +114,7 @@ function createInitialState() {
     leaderboardPhase: null,
     leaderboardData: [],
     initialsText: '',
+    showLeaderboardOverlay: false,
   };
 }
 
@@ -628,6 +629,21 @@ function drawGameOver() {
   }
 }
 
+// --- Leaderboard Overlay (in-game toggle) ---
+
+function drawLeaderboardOverlay() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  drawLeaderboardTable(80);
+
+  ctx.font = '16px Courier New';
+  ctx.fillStyle = '#888888';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Tap the leaderboard icon to close', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
+}
+
 // --- Difficulty ---
 
 function updateDifficulty() {
@@ -763,6 +779,11 @@ function render() {
   // Game over overlay
   if (state.gameOver) {
     drawGameOver();
+  }
+
+  // Leaderboard overlay (in-game toggle)
+  if (state.showLeaderboardOverlay && !state.gameOver) {
+    drawLeaderboardOverlay();
   }
 }
 
@@ -972,6 +993,15 @@ function setupInput() {
         micBtn.title = 'Could not start microphone — try using HTTPS';
       }
     }
+  });
+
+  // --- Leaderboard toggle ---
+  var lbBtn = document.getElementById('leaderboard-btn');
+  lbBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (state.gameOver) return;
+    state.showLeaderboardOverlay = !state.showLeaderboardOverlay;
+    lbBtn.classList.toggle('active', state.showLeaderboardOverlay);
   });
 }
 
