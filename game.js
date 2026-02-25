@@ -876,6 +876,15 @@ function setupInput() {
     }
   });
 
+  // --- Leaderboard toggle ---
+  var lbBtn = document.getElementById('leaderboard-btn');
+  lbBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (state.gameOver) return;
+    state.showLeaderboardOverlay = !state.showLeaderboardOverlay;
+    lbBtn.classList.toggle('active', state.showLeaderboardOverlay);
+  });
+
   // --- Microphone / Speech Recognition ---
   const micBtn = document.getElementById('mic-btn');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -995,14 +1004,6 @@ function setupInput() {
     }
   });
 
-  // --- Leaderboard toggle ---
-  var lbBtn = document.getElementById('leaderboard-btn');
-  lbBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    if (state.gameOver) return;
-    state.showLeaderboardOverlay = !state.showLeaderboardOverlay;
-    lbBtn.classList.toggle('active', state.showLeaderboardOverlay);
-  });
 }
 
 // --- Game Reset ---
