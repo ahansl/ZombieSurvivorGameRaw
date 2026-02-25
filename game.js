@@ -145,6 +145,13 @@ function drawRoundedRect(x, y, width, height, radius) {
 // --- Leaderboard API ---
 
 async function fetchLeaderboard() {
+  if (LEADERBOARD_BIN_ID === 'YOUR_BIN_ID_HERE') {
+    try {
+      return JSON.parse(localStorage.getItem('leaderboard')) || [];
+    } catch (e) {
+      return [];
+    }
+  }
   try {
     const res = await fetch('https://api.jsonbin.io/v3/b/' + LEADERBOARD_BIN_ID + '/latest', {
       headers: { 'X-Access-Key': LEADERBOARD_ACCESS_KEY }
@@ -158,6 +165,14 @@ async function fetchLeaderboard() {
 }
 
 async function saveLeaderboard(entries) {
+  if (LEADERBOARD_BIN_ID === 'YOUR_BIN_ID_HERE') {
+    try {
+      localStorage.setItem('leaderboard', JSON.stringify(entries));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
   try {
     await fetch('https://api.jsonbin.io/v3/b/' + LEADERBOARD_BIN_ID, {
       method: 'PUT',
@@ -175,12 +190,6 @@ async function saveLeaderboard(entries) {
 }
 
 function startLeaderboardFlow() {
-  if (LEADERBOARD_BIN_ID === 'YOUR_BIN_ID_HERE') {
-    state.leaderboardPhase = 'display';
-    state.leaderboardData = [];
-    return;
-  }
-
   state.leaderboardPhase = 'loading';
   input.value = '';
 
