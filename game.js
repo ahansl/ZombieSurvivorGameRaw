@@ -176,8 +176,20 @@ async function saveLeaderboard(entries) {
 
 function startLeaderboardFlow() {
   if (LEADERBOARD_BIN_ID === 'YOUR_BIN_ID_HERE') {
-    state.leaderboardPhase = 'display';
-    state.leaderboardData = [];
+    // No backend configured — use local in-memory leaderboard
+    var entries = state.leaderboardData;
+    var qualifies = entries.length < LEADERBOARD_MAX_ENTRIES ||
+      state.timer > entries[entries.length - 1].time;
+
+    if (qualifies) {
+      state.leaderboardPhase = 'initials';
+      input.setAttribute('inputmode', 'text');
+      input.placeholder = 'Enter initials...';
+      input.value = '';
+      input.focus();
+    } else {
+      state.leaderboardPhase = 'display';
+    }
     return;
   }
 
