@@ -878,12 +878,16 @@ function setupInput() {
 
   // --- Leaderboard toggle ---
   var lbBtn = document.getElementById('leaderboard-btn');
-  lbBtn.addEventListener('click', function (e) {
+  function toggleLeaderboard(e) {
     e.stopPropagation();
+    e.preventDefault();
     if (state.gameOver) return;
     state.showLeaderboardOverlay = !state.showLeaderboardOverlay;
     lbBtn.classList.toggle('active', state.showLeaderboardOverlay);
-  });
+    input.focus();
+  }
+  lbBtn.addEventListener('click', toggleLeaderboard);
+  lbBtn.addEventListener('touchend', toggleLeaderboard);
 
   // --- Microphone / Speech Recognition ---
   const micBtn = document.getElementById('mic-btn');
