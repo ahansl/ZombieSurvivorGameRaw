@@ -79,6 +79,11 @@ const STAR_HIT_DISTANCE = 20;
 // Difficulty scaling
 const DIFFICULTY_TICK_SECONDS = 30;
 
+// Leaderboard (JSONBin.io)
+const LEADERBOARD_BIN_ID = 'YOUR_BIN_ID_HERE';
+const LEADERBOARD_ACCESS_KEY = 'YOUR_ACCESS_KEY_HERE';
+const LEADERBOARD_MAX_ENTRIES = 10;
+
 // --- Game State ---
 
 let canvas, ctx, input;
@@ -106,6 +111,9 @@ function createInitialState() {
     starAngle: 0,
     solvedDirection: null,
     solvedFlashTimer: 0,
+    leaderboardPhase: null,
+    leaderboardData: [],
+    initialsText: '',
   };
 }
 
@@ -132,6 +140,76 @@ function drawRoundedRect(x, y, width, height, radius) {
   ctx.arcTo(x, y, x + radius, y, radius);
   ctx.closePath();
   ctx.fill();
+}
+
+// --- Leaderboard API ---
+
+async function fetchLeaderboard() {
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + LEADERBOARD_BIN_ID + '/latest', {
+      headers: { 'X-Access-Key': LEADERBOARD_ACCESS_KEY }
+    });
+    const json = await res.json();
+    return Array.isArray(json.record) ? json.record : [];
+  } catch (e) {
+    console.log('[leaderboard] fetch error:', e);
+    return [];
+  }
+}
+
+async function saveLeaderboard(entries) {
+  try {
+    await fetch('https://api.jsonbin.io/v3/b/' + LEADERBOARD_BIN_ID, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Access-Key': LEADERBOARD_ACCESS_KEY
+      },
+      body: JSON.stringify(entries)
+    });
+    return true;
+  } catch (e) {
+    console.log('[leaderboard] save error:', e);
+    return false;
+  }
+}
+
+function startLeaderboardFlow() {
+  if (LEADERBOARD_BIN_ID === 'YOUR_BIN_ID_HERE') {
+    state.leaderboardPhase = 'display';
+    state.leaderboardData = [];
+    return;
+  }
+
+  state.leaderboardPhase = 'loading';
+  input.value = '';
+
+  fetchLeaderboard().then(function (entries) {
+    state.leaderboardData = entries;
+    const qualifies = entries.length < LEADERBOARD_MAX_ENTRIES ||
+      state.timer > entries[entries.length - 1].time;
+
+    if (qualifies) {
+      state.leaderboardPhase = 'initials';
+      input.setAttribute('inputmode', 'text');
+      input.placeholder = 'Enter initials...';
+      input.value = '';
+      input.focus();
+    } else {
+      state.leaderboardPhase = 'display';
+    }
+  });
+}
+
+function submitScore() {
+  const entry = { initials: state.initialsText, time: state.timer };
+  state.leaderboardData.push(entry);
+  state.leaderboardData.sort(function (a, b) { return b.time - a.time; });
+  state.leaderboardData = state.leaderboardData.slice(0, LEADERBOARD_MAX_ENTRIES);
+  state.leaderboardPhase = 'display';
+  input.value = '';
+
+  saveLeaderboard(state.leaderboardData);
 }
 
 // --- Math Fact Generation ---
@@ -383,6 +461,10 @@ function checkCollisions() {
       }
     }
   }
+
+  if (state.gameOver) {
+    startLeaderboardFlow();
+  }
 }
 
 // --- HUD ---
@@ -434,33 +516,104 @@ function drawDamageFlash() {
 
 // --- Game Over ---
 
+function drawLeaderboardTable(startY) {
+  const cx = CANVAS_WIDTH / 2;
+  const entries = state.leaderboardData;
+
+  ctx.font = 'bold 20px Courier New';
+  ctx.fillStyle = '#ffd700';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('TOP SURVIVORS', cx, startY);
+
+  const rowHeight = 28;
+  const tableY = startY + 30;
+
+  ctx.font = 'bold 14px Courier New';
+  ctx.fillStyle = '#888888';
+  ctx.textAlign = 'right';
+  ctx.fillText('#', cx - 100, tableY);
+  ctx.textAlign = 'center';
+  ctx.fillText('NAME', cx, tableY);
+  ctx.textAlign = 'left';
+  ctx.fillText('TIME', cx + 70, tableY);
+
+  for (let i = 0; i < entries.length && i < LEADERBOARD_MAX_ENTRIES; i++) {
+    const entry = entries[i];
+    const y = tableY + (i + 1) * rowHeight;
+    const m = Math.floor(entry.time / 60);
+    const s = Math.floor(entry.time % 60);
+    const t = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+
+    ctx.font = '16px Courier New';
+    ctx.fillStyle = i < 3 ? '#ffd700' : '#cccccc';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(i + 1), cx - 100, y);
+    ctx.textAlign = 'center';
+    ctx.fillText(entry.initials, cx, y);
+    ctx.textAlign = 'left';
+    ctx.fillText(t, cx + 70, y);
+  }
+
+  if (entries.length === 0) {
+    ctx.font = '16px Courier New';
+    ctx.fillStyle = '#666666';
+    ctx.textAlign = 'center';
+    ctx.fillText('No scores yet', cx, tableY + rowHeight);
+  }
+}
+
 function drawGameOver() {
-  // Dark overlay
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // GAME OVER
+  const cx = CANVAS_WIDTH / 2;
+  const minutes = Math.floor(state.timer / 60);
+  const seconds = Math.floor(state.timer % 60);
+  const timeStr = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+
   ctx.font = 'bold 48px Courier New';
   ctx.fillStyle = '#e94560';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+  ctx.fillText('GAME OVER', cx, 60);
 
-  // Survival time
-  const minutes = Math.floor(state.timer / 60);
-  const seconds = Math.floor(state.timer % 60);
   ctx.font = 'bold 24px Courier New';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(
-    'You survived: ' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0'),
-    CANVAS_WIDTH / 2,
-    CANVAS_HEIGHT / 2 + 10
-  );
+  ctx.fillText('You survived: ' + timeStr, cx, 105);
 
-  // Restart instruction
-  ctx.font = '18px Courier New';
-  ctx.fillStyle = '#cccccc';
-  ctx.fillText('Press ENTER to play again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+  if (state.leaderboardPhase === 'loading') {
+    ctx.font = '18px Courier New';
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText('Loading leaderboard...', cx, 300);
+
+  } else if (state.leaderboardPhase === 'initials') {
+    ctx.font = 'bold 28px Courier New';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('NEW HIGH SCORE!', cx, 200);
+
+    const display = state.initialsText.padEnd(3, '_');
+    ctx.font = 'bold 48px Courier New';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(display, cx, 270);
+
+    ctx.font = '18px Courier New';
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText('Type 3 letters, then press ENTER', cx, 330);
+
+  } else if (state.leaderboardPhase === 'display') {
+    drawLeaderboardTable(155);
+
+    ctx.font = '18px Courier New';
+    ctx.fillStyle = '#cccccc';
+    ctx.textAlign = 'center';
+    ctx.fillText('Press ENTER to play again', cx, 560);
+
+  } else {
+    ctx.font = '18px Courier New';
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText('Press ENTER to play again', cx, 160);
+  }
 }
 
 // --- Difficulty ---
@@ -657,12 +810,18 @@ function setupInput() {
   input.focus();
 
   document.addEventListener('click', function () {
-    if (!state.gameOver) {
+    if (!state.gameOver || state.leaderboardPhase === 'initials') {
       input.focus();
     }
   });
 
   input.addEventListener('input', function () {
+    if (state.gameOver && state.leaderboardPhase === 'initials') {
+      state.initialsText = input.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3);
+      input.value = state.initialsText;
+      return;
+    }
+
     if (state.gameOver || state.solvedFlashTimer > 0) return;
 
     const value = input.value.trim();
@@ -676,7 +835,11 @@ function setupInput() {
 
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && state.gameOver) {
-      resetGame();
+      if (state.leaderboardPhase === 'initials' && state.initialsText.length === 3) {
+        submitScore();
+      } else if (state.leaderboardPhase === 'display' || state.leaderboardPhase === null) {
+        resetGame();
+      }
     }
   });
 
@@ -806,6 +969,8 @@ function resetGame() {
   state = createInitialState();
   generateAllFacts();
   input.value = '';
+  input.setAttribute('inputmode', 'numeric');
+  input.placeholder = 'Type answer here...';
   input.focus();
   lastTimestamp = 0;
 }
